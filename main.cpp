@@ -8,7 +8,6 @@
 using namespace std;
 using namespace std::chrono;
 
-vector<int> COL_ORDER;
 
 bool ascSortTable1(vector<string> const &r1, vector<string> const &r2) {
     if(r1[1] == r2[1])
@@ -26,8 +25,8 @@ class AscRecCompareT1 {
 public:
     bool operator()(vector<string> const &r1, vector<string> const &r2) {
         if(r1[1] == r2[1])
-            return (r1[0].compare(r2[0]))<0;
-        return (r1[1].compare(r2[1]))<0;
+            return (r1[0].compare(r2[0]))>0;
+        return (r1[1].compare(r2[1]))>0;
     }
 };
 
@@ -35,8 +34,8 @@ class AscRecCompareT2 {
 public:
     bool operator()(vector<string> const &r1, vector<string> const &r2) {
         if(r1[0] == r2[0])
-            return (r1[1].compare(r2[1]))<0;
-        return (r1[0].compare(r2[0]))<0;
+            return (r1[1].compare(r2[1]))>0;
+        return (r1[0].compare(r2[0]))>0;
     }
 };
 
@@ -73,46 +72,6 @@ public:
         MBLOCKS = m_blocks;
         maxMemRows = (long int) m_blocks*recsPerBlock;
         cout << "Memory size taken (in rows) : " << maxMemRows << endl;
-//        getMetadata();
-    }
-
-    void getMetadata() {
-        ifstream metafile("metadata.txt");
-        string colname, line;
-        long int colsize;
-        while(getline(metafile, line)) {
-            int cpos = line.find(',');
-            if (cpos == string::npos) {
-                cout << "Invalid format of Metadata!" << endl;
-                exit(0);
-            }
-            colname = line.substr(0,cpos);
-            colsize = stol(line.substr(cpos+1));
-            metaVec.push_back(make_pair(colname,colsize));
-            recSize += colsize;
-        }
-        metafile.close();
-        cout << "Record size in bytes (without delimiter) : " << recSize << endl;
-        for(auto it=sortColsVec.begin();it!=sortColsVec.end();it++) {
-            bool flag = false;
-            for(int j=0;j<metaVec.size();j++) {
-//                cout << metaVec[j].first << " ";
-                if(*it == metaVec[j].first) {
-                    sortColIndexVec.push_back(j);
-                    flag = true;
-                    break;
-                }
-            }
-            if(!flag) {
-                cout << "Column " << *it << " does not exist" << endl;
-                exit(0);
-            }
-        }
-        COL_ORDER = sortColIndexVec;
-//        cout << "colorder";
-//        for(int a=0;a<COL_ORDER.size();a++)
-//            cout << COL_ORDER[a] << " ";
-//        cout << endl;
     }
 
     void sortFile() {
@@ -195,7 +154,7 @@ public:
         tmpfile.close();
         if(curT == "T1") {
             t1_tmpFilenamesVec.push_back(tmp_filename);
-            t2_num_recs_per_file_vec.push_back(recordsVec.size());
+            t1_num_recs_per_file_vec.push_back(recordsVec.size());
         }
         else {
             t2_tmpFilenamesVec.push_back(tmp_filename);
@@ -205,7 +164,7 @@ public:
 
     void phaseTwoSort() {
         openTempFiles();
-        cout << "Temp files opened" << endl;
+//        cout << "Temp files opened" << endl;
         ofstream *outFile = new ofstream("T1_T2_join", ios::out | ios::app);
         int t1_nof_subfiles = t1_tmpFilenamesVec.size();
         int t2_nof_subfiles = t2_tmpFilenamesVec.size();
@@ -225,6 +184,7 @@ public:
             for(vector<string> const rvec : readDataBlock(i, t1_openTempFilesVec[i], block_size, "T1"))
                 t1_PQ.push(rvec);
         }
+        cout << "1st block from all T1 subfiles read" << endl;
         for(int i=0;i<t2_nof_subfiles;i++) {
             t2_subfile_access_arr[i] = 0;
             for(vector<string> const rvec : readDataBlock(i, t2_openTempFilesVec[i], block_size, "T2"))
@@ -236,6 +196,8 @@ public:
 //            vector<vector<string>> t2_curr_join_tuples;
             vector<string> t1_top_record = t1_PQ.top();
             vector<string> t2_top_record = t2_PQ.top();
+            cout << "T1 PQ size " << t1_PQ.size() << " " << t1_top_record[0] << " " << t1_top_record[1] << endl;
+            cout << "T2 PQ size" << t2_PQ.size() << " " << t2_top_record[0] << " " << t2_top_record[1] << endl;
 //            t1_PQ.pop();
 //            t2_PQ.pop();
             int t1_top_subfile_num = stoi(t1_top_record[last_col_idx]);
@@ -246,6 +208,7 @@ public:
 //            cout << top_block_num << "access" << block_access_arr[top_block_num] << endl;
             if(t1_top_record[1].compare(t2_top_record[0]) > 0) {
                 // get next tuple from t2
+                cout << "T1 > T2" << endl;
                 t2_PQ.pop();
                 if(t2_subfile_access_arr[t2_top_subfile_num] >= block_size && !t2_completed_arr[t2_top_subfile_num]) {
                     for(vector<string> const rvec : readDataBlock(t2_top_subfile_num, t2_openTempFilesVec[t2_top_subfile_num], block_size, "T2"))
@@ -255,6 +218,7 @@ public:
             }
             else if(t1_top_record[1].compare(t2_top_record[0]) < 0) {
                 // get next tuple from t1
+                cout << "T1 < T2" << endl;
                 t1_PQ.pop();
                 if(t1_subfile_access_arr[t1_top_subfile_num] >= block_size && !t1_completed_arr[t1_top_subfile_num]) {
                     for(vector<string> const rvec : readDataBlock(t1_top_subfile_num, t1_openTempFilesVec[t1_top_subfile_num], block_size, "T1"))
@@ -263,9 +227,15 @@ public:
                 }
             }
             else {
+                cout << "T1 = T2" << endl;
                 t2_top_record.pop_back(); // remove subfile number from end
                 t2_curr_join_tuples.push_back(t2_top_record);
                 t2_PQ.pop();
+                if(t2_subfile_access_arr[t2_top_subfile_num] >= block_size && !t2_completed_arr[t2_top_subfile_num]) {
+                    for(vector<string> const rvec : readDataBlock(t2_top_subfile_num, t2_openTempFilesVec[t2_top_subfile_num], block_size, "T2"))
+                        t2_PQ.push(rvec);
+                    t2_subfile_access_arr[t2_top_subfile_num] = 0;
+                }
                 while(!t2_PQ.empty() && t1_top_record[1]==t2_PQ.top()[0]) {
                     t2_top_record = t2_PQ.top();
                     t2_PQ.pop();
@@ -281,6 +251,11 @@ public:
                 }
                 store_by_join(outFile, t1_top_record);
                 t1_PQ.pop();
+                if(t1_subfile_access_arr[t1_top_subfile_num] >= block_size && !t1_completed_arr[t1_top_subfile_num]) {
+                    for(vector<string> const rvec : readDataBlock(t1_top_subfile_num, t1_openTempFilesVec[t1_top_subfile_num], block_size, "T1"))
+                        t1_PQ.push(rvec);
+                    t1_subfile_access_arr[t1_top_subfile_num] = 0;
+                }
                 while(!t1_PQ.empty() && t1_PQ.top()[1]==t2_top_record[0]) {
                     t1_top_record = t1_PQ.top();
                     t1_PQ.pop();
@@ -303,11 +278,15 @@ public:
         string line, word;
         vector<vector<string>> block_recs;
         for(int b=0;b<block_size;b++) {
-//            cout << "before getline " << filenum << endl;
+            cout << "Getting nextline from subfile " << filenum << endl;
             if(subfile->peek() && getline(*subfile,line)) {
+//                cout << "in if of get" << endl;
+                cout << line << endl;
                 vector<string> record = recToVec(line);
+//                cout << "after rectovec" << endl;
                 record.push_back(to_string(filenum));
                 block_recs.push_back(record);
+
                 if(curT == "T1") {
                     t1_num_recs_per_file_vec[filenum]--;
                     if (t1_num_recs_per_file_vec[filenum] <= 0) {
@@ -334,7 +313,7 @@ public:
 
     void store_by_join(ofstream* outFile, vector<string> t1_tuple) {
         for(vector<string> const t2_tuple : t2_curr_join_tuples) {
-            string joined_tuple = t1_tuple[0] + " " + t1_tuple[1] + " " + t2_tuple[0];
+            string joined_tuple = t1_tuple[0] + " " + t1_tuple[1] + " " + t2_tuple[1];
             *outFile << joined_tuple << "\n";
         }
     }
