@@ -57,7 +57,7 @@ public:
     vector<string> t1_tmpFilenamesVec;
     vector<string> t2_tmpFilenamesVec;
     int MBLOCKS = 0;
-    int recsPerBlock = 2;
+    int recsPerBlock = 100;
     bool *t1_completed_arr;
     bool *t2_completed_arr;
     vector<int> t1_num_recs_per_file_vec;
@@ -86,6 +86,7 @@ public:
                 cout << "Memory constraint violated!" << endl;
                 exit(0);
             }
+            cout << "=================================" << endl;
             cout << "Running Phase 2" << endl;
             phaseTwoSort();
         }
@@ -165,7 +166,8 @@ public:
     void phaseTwoSort() {
         openTempFiles();
 //        cout << "Temp files opened" << endl;
-        ofstream *outFile = new ofstream("T1_T2_join", ios::out | ios::app);
+        string out_filename = table1File+"_"+table2File+"_join.txt";
+        ofstream *outFile = new ofstream(out_filename, ios::out | ios::app);
         int t1_nof_subfiles = t1_tmpFilenamesVec.size();
         int t2_nof_subfiles = t2_tmpFilenamesVec.size();
 //        int block_size = (int)maxMemSize/(sublist_num*recSize);
@@ -190,8 +192,9 @@ public:
             for(vector<string> const rvec : readDataBlock(i, t2_openTempFilesVec[i], block_size, "T2"))
                 t2_PQ.push(rvec);
         }
-        cout << "Sorting ..." << endl;
+        cout << "Joining ..." << endl;
         while(!t1_PQ.empty() && !t2_PQ.empty()) {
+            cout << "---------------------------------" << endl;
             int last_col_idx = 2;
 //            vector<vector<string>> t2_curr_join_tuples;
             vector<string> t1_top_record = t1_PQ.top();
